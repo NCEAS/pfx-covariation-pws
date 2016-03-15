@@ -1,0 +1,612 @@
+---
+title: "Sockeye salmon analyses for paper"
+date: "09-01-2015"
+output:
+  pdf_document:
+    fig_caption: yes
+  html_document: default
+  word_document: default
+---
+
+This represents an outline / summary of the analyses for the paper. For salmon, we're only digging into recruitment. For example with sockeye, there's been other studies on individual growth -- see Ruggerone & Rogers (1998), "Historical Analysis of Sockeye Salmon Growth Among Populations Affected by the Exxon Valdez Oil Spill and Large Spawning Escapements"
+
+# Data Processing  
+```{r,echo=FALSE,message=FALSE}
+# Try readxl package
+if("readxl" %in% rownames(installed.packages()) == FALSE) {
+  devtools::install_github("hadley/readxl")}
+require(readxl)
+library(MARSS)
+library(knitr)
+```
+
+##Brief descriptions of each sockeye dataset are as follows:
+
+### 1. Coghill Lake sockeye  
+Brood year returns are taken from the column 'AI' in the 'BroodTab' sheet. Return year escapement is taken from column 'AK' in the 'BroodTab' sheet.  
+
+### 2. Eshamy Lake sockeye  
+R/S is calculated as brood year returns / escapement. This calculation is in column 'S' of the 'broodtab' sheet. Total brood year return is in column 'R', and total escapement is in column 'B' of the same sheet. Several values are missing, corresponding to years where the weir was not up and running.  
+
+### 3. Copper River sockeye
+R/S is calculated as brood year returns / escapement. Escapement by calendar year is in column 'B' of the 'Brd Tbl' sheet, total brood year return is given in column 'AN'.   
+
+
+### Read in the data. All datasets have been trimmed to start at Brood Year 1968. We'll primarily use data 1980 or 1981 - 2008, because those are the span of years with R/S and covariates known (hatchery releases before 1980 incomplete).
+```{r}
+coghill = read_excel("../../data/salmon data/data for analysis/Coghill_Wild_Sockeye_final.xlsx")
+eshamy = read_excel("../../data/salmon data/data for analysis/Eshamy_Wild_Sockeye_final.xlsx")
+copper = read_excel("../../data/salmon data/data for analysis/Copper_Wild_Sockeye_final.xlsx")
+```
+
+Plot the response, log(Recruits/Spawners).
+```{r,echo=FALSE,cache=TRUE,results="hide", fig.cap='log(Recruits / Spawner) over time, 1981-2008',fig.pos="placeHere"}
+subset = which(coghill$BroodYear%in%seq(1981,2008))
+Y = log(as.numeric(coghill$RecPerSpawn[subset])) # log(R/S)
+
+par(mfrow = c(2,2),mgp=c(2,1,0),mai=c(0.8,0.6,0.2,0.05))
+plot(1981:2008,Y, xlab="Year",ylab="Recruits/Spawner",main="Coghill",type="b")
+
+Y = log(as.numeric(eshamy$RecPerSpawn[subset])) # log(R/S)
+plot(1981:2008,Y, xlab="Year",ylab="Recruits/Spawner",main="Eshamy",type="b")
+
+Y = log(as.numeric(copper$RecPerSpawn[subset])) # log(R/S)
+plot(1981:2008,Y, xlab="Year",ylab="Recruits/Spawner",main="Copper",type="b")
+# fit linear model
+```
+
+Plot the predictor, number of spawners.
+```{r,echo=FALSE,cache=TRUE,results="hide",fig.cap='Spawners over time, 1981-2008',fig.pos="placeHere"}
+subset = which(coghill$BroodYear%in%seq(1981,2008))
+X = as.numeric(coghill$Escapement[subset]) # number of spawners
+par(mfrow = c(2,2),mgp=c(2,1,0),mai=c(0.8,0.6,0.2,0.05))
+plot(1981:2008,X, xlab="Year",ylab="Spawners",main="Coghill",type="b")
+
+X = as.numeric(eshamy$Escapement[subset]) # number of spawners
+fit = c(MARSS(log(X))$states)
+X[which(is.na(X))]= exp(fit[which(is.na(X))])
+plot(1981:2008,X, xlab="Year",ylab="Spawners",main="Eshamy",type="b")
+
+X = as.numeric(copper$Escapement[subset]) # number of spawners
+plot(1981:2008,Y, xlab="Year",ylab="Spawners",main="Copper",type="b")
+# fit linear model
+```
+
+Plot the data, as log(Recruits/Spawners) versus Spawners over the period we're using, 1981-2008. This is the same formulation as the Ricker model assumes (below).
+```{r,echo=FALSE,cache=TRUE,results="hide",fig.cap='Raw data plot of log(R/S) on Spawners, 1981-2008',fig.pos="placeHere"}
+subset = which(coghill$BroodYear%in%seq(1981,2008))
+Y = log(as.numeric(coghill$RecPerSpawn[subset])) # log(R/S)
+X = as.numeric(coghill$Escapement[subset]) # number of spawners
+par(mfrow = c(2,2),mgp=c(2,1,0),mai=c(0.8,0.6,0.2,0.05))
+plot(X,Y, xlab="Spawners",ylab="Recruits/Spawner",main="Coghill")
+# fit linear model
+lines(X, predict.lm(lm(Y~X),newdata=data.frame(X)), col="blue",lwd=3)
+
+Y = log(as.numeric(eshamy$RecPerSpawn[subset])) # log(R/S)
+X = as.numeric(eshamy$Escapement[subset]) # number of spawners
+fit = c(MARSS(log(X))$states)
+X[which(is.na(X))]= exp(fit[which(is.na(X))])
+plot(X,Y, xlab="Spawners",ylab="Recruits/Spawner",main="Eshamy")
+# fit linear model
+lines(X, predict.lm(lm(Y~X),newdata=data.frame(X)), col="blue",lwd=3)
+
+Y = log(as.numeric(copper$RecPerSpawn[subset])) # log(R/S)
+X = as.numeric(copper$Escapement[subset]) # number of spawners
+plot(X,Y, xlab="Spawners",ylab="Recruits/Spawner",main="Copper")
+# fit linear model
+lines(X, predict.lm(lm(Y~X),newdata=data.frame(X)), col="blue",lwd=3)
+```
+
+Plot the residuals from the regression of log(Recruits/Spawners) versus Spawners over the period we're using, 1981-2008. This is the same formulation as the Ricker model assumes (below).
+```{r,echo=FALSE,cache=TRUE,results="hide",fig.cap='Results of regression of log(R/S) on Spawners, 1981-2008',fig.pos="placeHere"}
+subset = which(coghill$BroodYear%in%seq(1981,2008))
+
+par(mfrow = c(2,2),mgp=c(2,1,0),mai=c(0.8,0.6,0.2,0.05))
+Y = log(as.numeric(coghill$RecPerSpawn[subset])) # log(R/S)
+X = as.numeric(coghill$Escapement[subset]) # number of spawners
+mod = lm(Y~X)
+plot(1981:2008,mod$residuals, xlab="Year",ylab="Residuals",main="Coghill",type="b")
+
+Y = log(as.numeric(eshamy$RecPerSpawn[subset])) # log(R/S)
+X = as.numeric(eshamy$Escapement[subset]) # number of spawners
+idx = which(is.na(X+Y))
+mod = lm(Y[-idx]~X[-idx])
+plot(seq(1981,2008)[-idx],mod$residuals, xlab="Year",ylab="Residuals",main="Eshamy",type="b")
+
+Y = log(as.numeric(copper$RecPerSpawn[subset])) # log(R/S)
+X = as.numeric(copper$Escapement[subset]) # number of spawners
+mod = lm(Y~X)
+plot(1981:2008,mod$residuals, xlab="Year",ylab="Residuals",main="Copper",type="b")
+
+```
+# Modeling recruiutment  
+
+We'll conduct this analysis using the Ricker stock-recruit model, which is equivalent to a linear regression model,  
+$log(R/S)_{t} = {a}_{i} + {b}_{i}*{S}_{t} + {c}_{i}*{X}_{t}  + {e}_{i}$  
+  
+where ${a}_{i}$ represents the population-specific intercept, ${b}_{i}$ is a density-dependent parameter (generally negative), ${c}_{i}$ is an optional coefficient(s) incorporating a time-varying covariate ${X}_{t}$, and ${e}_{i}$ is an error term. Simple models for the error are IID white noise, which we'll adopt here.
+
+## Constructing the basic (null) model with no covariates. 
+We'll start with just using data 1981-2008, and spawners as a predictor of recruitment. Each population (Coghill, Eshamy, Copper) is assumed to be an independent 'process', but have shared observation errors. Recruits / spawner is not modeled as an autoregressive state-space process, but all uncertainty is assumed to have arisen from measurement and observation error. Hypotheses for mechanistic relationships are discussed and evaluated below. 
+
+```{r,warning=FALSE,silent=TRUE}
+subset = which(coghill$BroodYear%in%seq(1981,2008))
+
+Y = log(as.numeric(coghill$RecPerSpawn[subset])) # log(R/S)
+X = as.numeric(coghill$Escapement[subset]) # number of spawners
+nT = length(Y)
+
+Y2 = log(as.numeric(eshamy$RecPerSpawn[subset])) # log(R/S)
+X2 = as.numeric(eshamy$Escapement[subset]) # number of spawners
+```
+
+```{r,warning=FALSE,silent=TRUE,echo=FALSE,cache=TRUE,results="hide"}
+# interpolate eshamy spawners
+fit = c(MARSS(log(X2))$states)
+```
+
+```{r,warning=FALSE,silent=TRUE}
+X2[which(is.na(X2))]= exp(fit[which(is.na(X2))])
+
+Y3 = log(as.numeric(copper$RecPerSpawn[subset])) # log(R/S)
+X3 = as.numeric(copper$Escapement[subset]) # number of spawners
+
+# fit in initial Ricker S-R state space model 
+cMat = matrix(NA, nrow=3, ncol = nT)
+cMat[1,] = X
+cMat[2,] = X2
+cMat[3,] = X3
+
+Yall = rbind(Y,Y2,Y3)  # log(R/S)
+
+Covar = matrix(list(0),3,3)
+Covar[1,1] = "Spawn.Cog"
+Covar[2,2] = "Spawn.Esh"
+Covar[3,3] = "Spawn.Cop"
+
+models = list()
+
+```
+
+```{r,warning=FALSE,silent=TRUE,echo=FALSE,cache=TRUE,results="hide"}
+# set Q = 0, observation error only
+models[[1]] = MARSS(Yall, model = list("d"=cMat,"D"=t(Covar),"Q"="zero"))
+diag(Covar)="Spawn"
+models[[2]] = MARSS(Yall, model = list("d"=cMat,"D"=t(Covar),"Q"="zero"))
+models[[3]] = MARSS(Yall, model = list("Q"="zero"))
+m = matrix(NA,3,2)
+colnames(m) = c("Model","AICc")
+m[1,1]="Unequal density dependence (Ricker b)"
+m[2,1]="Equal density dependence (Ricker b)"
+m[3,1]="Null model"
+m[1,2]=round(models[[1]]$AICc,3)
+m[2,2]=round(models[[2]]$AICc,3)
+m[3,2]=round(models[[3]]$AICc,3)
+```
+
+```{r,echo=FALSE}
+kable(m)
+```
+
+# Hypothesis 1: EVOS had a negative impact on sockeye productivity
+
+The EVOS spill occurred in 1989. Sockeye typically migrate to the ocean 2 years after spawning, so the immediate impacts of the spill may have impacted recruitment from brood years 1987, 1988, and 1989. 
+  
+We'll include the impacts of the EVOS spill. We'll do this 3 ways: creating a pulse impact, a press impact, and a press impact followed by a recovery back to the original state. The form of the recovery was assumed to be linear over a 20 - year period.  
+
+```{r,fig.cap="Illustration of covariates representing EVOS impacts",fig.pos="placeHere"}
+par(mfrow = c(2,2),mgp=c(2,1,0))
+plot(coghill$BroodYear, 1-coghill$EVOS.pulse.lag0, xlab = "", ylab = "Impact",
+     main = "Pulse",col="blue",lwd=3,type="l")
+plot(coghill$BroodYear, 1-coghill$EVOS.press.lag0, xlab = "", ylab = "Impact",
+     main = "Press",col="blue",lwd=3,type="l")
+plot(coghill$BroodYear, coghill$EVOS.pulseRecovery.lag0, xlab = "", ylab = "Impact",
+     main = "Pulse/Recovery",col="blue",lwd=3,type="l")
+```
+
+```{r,warning=FALSE, cache=TRUE}
+library(MARSS)
+covar.names = c("EVOS.pulse.lag0","EVOS.press.lag0","EVOS.pulseRecovery.lag0",  
+"EVOS.pulse.lag2","EVOS.press.lag2","EVOS.pulseRecovery.lag2")
+# fit in initial Ricker S-R state space model 
+
+cMat = matrix(NA, nrow=4, ncol = nT)
+cMat[1,] = X
+cMat[2,] = X2
+cMat[3,] = X3
+Yall = rbind(Y,Y2,Y3)
+
+# Coefficients matrix. cMat Matrix is dimensioned
+# cmat.row x cmat.col, and Covar needs to be dimensioned
+# cmat.row x n.responses
+Covar = matrix(list(0),3,3)
+Covar[1,1] = "Spawn.Cog"
+Covar[2,2] = "Spawn.Esh"
+Covar[3,3] = "Spawn.Cop"
+Covar = rbind(Covar,c("EVOS","EVOS","EVOS"))
+
+evos.models = list()
+
+```
+
+```{r,echo=FALSE,warning=FALSE,silent=TRUE,cache=TRUE,results="hide"}
+m = matrix(NA,length(covar.names),3)
+colnames(m) = c("Model","AICc","Coef")
+m[,1] = covar.names
+
+for(i in 1:length(covar.names)) {
+# include this covariate as predictor
+cMat[4,] = coghill[subset,covar.names[i]]
+# set Q = 0, observation error only
+evos.models[[i]] = MARSS(Yall, model = list("d"=cMat,"D"=t(Covar),"Q"="zero"))
+m[i,2] = round(evos.models[[i]]$AICc,3)
+m[i,3] = round(evos.models[[i]]$par$A[4],8)
+}
+
+```
+
+```{r,echo=FALSE}
+kable(m)
+```
+
+These results show that in general, adding EVOS as an impact increases AICc.
+
+```{r,echo=FALSE}
+#kable(m)
+```
+
+# Hypothesis 2: Sockeye productivity in PWS has been negatively impacted by predation and competition from juvenile pink or chum salmon
+
+```{r,warning=FALSE, cache=TRUE}
+library(MARSS)
+covar.names = c("juv.hatchRelPink.lag2","juv.hatchRelChum.lag2",
+"juv.wildPinkRun.lag1","juv.wildChumRun.lag1")
+# fit in initial Ricker S-R state space model 
+
+cMat = matrix(NA, nrow=4, ncol = nT)
+cMat[1,] = X
+cMat[2,] = X2
+cMat[3,] = X3
+Yall = rbind(Y,Y2,Y3)
+
+# Coefficients matrix. cMat Matrix is dimensioned
+# cmat.row x cmat.col, and Covar needs to be dimensioned
+# cmat.row x n.responses
+Covar = matrix(list(0),3,3)
+Covar[1,1] = "Spawn.Cog"
+Covar[2,2] = "Spawn.Esh"
+Covar[3,3] = "Spawn.Cop"
+Covar = rbind(Covar,c("Competition","Competition","Competition"))
+
+juvComp.models = list()
+
+```
+
+```{r,echo=FALSE,warning=FALSE,silent=TRUE,cache=TRUE,results="hide"}
+m = matrix(NA,length(covar.names),3)
+colnames(m) = c("Model","AICc","Coef")
+m[,1] = covar.names
+
+for(i in 1:length(covar.names)) {
+# include this covariate as predictor
+cMat[4,] = coghill[subset,covar.names[i]]
+# set Q = 0, observation error only
+juvComp.models[[i]] = MARSS(Yall, model = list("d"=cMat,"D"=t(Covar),"Q"="zero"))
+m[i,2] = round(juvComp.models[[i]]$AICc,3)
+m[i,3] = round(juvComp.models[[i]]$par$A[4],8)
+}
+
+```
+
+```{r,echo=FALSE}
+kable(m)
+```
+
+These results show that in these indices of pink and chum salmon juvenile competion with juvenile sockeye increases AICc.
+
+# Hypothesis 3: Sockeye productivity in PWS has been negatively impacted by predation and competition from adult pink salmon
+
+```{r,warning=FALSE, cache=TRUE}
+library(MARSS)
+
+coghill$ad.totalPinkRun.lag2 = coghill$ad.wildPinkRun.lag2 + coghill$ad.hatchPinkRun.lag2
+covar.names = c("ad.hatchRelPink.lag0","ad.hatchRelChum.lag1",
+"ad.wildPinkRun.lag2","ad.hatchPinkRun.lag2","ad.wildChumRun.lag2",
+"ad.totalPinkRun.lag2")
+
+# fit in initial Ricker S-R state space model 
+ 
+cMat = matrix(NA, nrow=4, ncol = nT)
+cMat[1,] = X
+cMat[2,] = X2
+cMat[3,] = X3
+Yall = rbind(Y,Y2,Y3)
+
+# Coefficients matrix. cMat Matrix is dimensioned
+# cmat.row x cmat.col, and Covar needs to be dimensioned
+# cmat.row x n.responses
+Covar = matrix(list(0),3,3)
+Covar[1,1] = "Spawn.Cog"
+Covar[2,2] = "Spawn.Esh"
+Covar[3,3] = "Spawn.Cop"
+Covar = rbind(Covar,c("Predation","Predation","Predation"))
+
+adComp.models = list()
+
+```
+
+```{r,echo=FALSE,warning=FALSE,silent=TRUE,cache=TRUE,results="hide"}
+m = matrix(NA,length(covar.names),3)
+colnames(m) = c("Model","AICc","Coef")
+m[,1] = covar.names
+   
+for(i in 1:length(covar.names)) {
+# include this covariate as predictor
+cMat[4,] = coghill[subset,covar.names[i]]
+# set Q = 0, observation error only
+adComp.models[[i]] = MARSS(Yall, model = list("d"=cMat,"D"=t(Covar),"Q"="zero"))
+m[i,2] = round(adComp.models[[i]]$AICc,3)
+m[i,3] = round(adComp.models[[i]]$par$A[4],8)
+}
+
+```
+
+```{r,echo=FALSE}
+kable(m)
+```
+
+These results show that in these indices of pink and chum salmon adult predation with juvenile sockeye increases AICc.
+
+# Hypothesis 4: Sockeye productivity in PWS has been largely shaped by changing ocean conditions (SST, PDO)
+
+```{r,warning=FALSE, cache=TRUE}
+library(MARSS)
+covar.names = c("SST.sock.lag2","Upwelling.winter.lag1",
+"Upwelling.winter.lag2")
+# fit in initial Ricker S-R state space model 
+
+cMat = matrix(NA, nrow=4, ncol = nT)
+cMat[1,] = X
+cMat[2,] = X2
+cMat[3,] = X3
+Yall = rbind(Y,Y2,Y3)
+
+# Coefficients matrix. cMat Matrix is dimensioned
+# cmat.row x cmat.col, and Covar needs to be dimensioned
+# cmat.row x n.responses
+Covar = matrix(list(0),3,3)
+Covar[1,1] = "Spawn.Cog"
+Covar[2,2] = "Spawn.Esh"
+Covar[3,3] = "Spawn.Cop"
+Covar = rbind(Covar,c("Enviro","Enviro","Enviro"))
+
+enviro.models = list()
+
+```
+
+```{r,echo=FALSE,warning=FALSE,silent=TRUE,cache=TRUE,results="hide"}
+m = matrix(NA,length(covar.names),3)
+colnames(m) = c("Model","AICc","Coef")
+m[,1] = covar.names
+
+for(i in 1:length(covar.names)) {
+# include this covariate as predictor
+cMat[4,] = coghill[subset,covar.names[i]]
+# set Q = 0, observation error only
+enviro.models[[i]] = MARSS(Yall, model = list("d"=cMat,"D"=t(Covar),"Q"="zero"))
+m[i,2] = round(enviro.models[[i]]$AICc,3)
+m[i,3] = round(enviro.models[[i]]$par$A[4],8)
+}
+
+```
+
+```{r,echo=FALSE}
+kable(m)
+```
+
+These results show that in these indices of pink and chum salmon adult predation with juvenile sockeye increases AICc.
+
+As an update, we can also explore whether these same correlations hold for the longer time series, going back to 1968.
+```{r,warning=FALSE,silent=TRUE}
+subset = which(coghill$BroodYear%in%seq(1968,2008))
+
+Y = log(as.numeric(coghill$RecPerSpawn[subset])) # log(R/S)
+X = as.numeric(coghill$Escapement[subset]) # number of spawners
+nT = length(Y)
+
+Y2 = log(as.numeric(eshamy$RecPerSpawn[subset])) # log(R/S)
+X2 = as.numeric(eshamy$Escapement[subset]) # number of spawners
+```
+
+```{r,warning=FALSE,silent=TRUE,echo=FALSE,cache=TRUE,results="hide"}
+# interpolate eshamy spawners
+fit = c(MARSS(log(X2))$states)
+```
+
+```{r,warning=FALSE,silent=TRUE}
+X2[which(is.na(X2))]= exp(fit[which(is.na(X2))])
+
+Y3 = log(as.numeric(copper$RecPerSpawn[subset])) # log(R/S)
+X3 = as.numeric(copper$Escapement[subset]) # number of spawners
+
+# fit in initial Ricker S-R state space model 
+cMat = matrix(NA, nrow=3, ncol = nT)
+cMat[1,] = X
+cMat[2,] = X2
+cMat[3,] = X3
+
+Yall = rbind(Y,Y2,Y3)  # log(R/S)
+
+Covar = matrix(list(0),3,3)
+Covar[1,1] = "Spawn.Cog"
+Covar[2,2] = "Spawn.Esh"
+Covar[3,3] = "Spawn.Cop"
+
+models = list()
+
+```
+
+```{r,warning=FALSE,silent=TRUE,echo=FALSE,cache=TRUE,results="hide"}
+# set Q = 0, observation error only
+models[[1]] = MARSS(Yall, model = list("d"=cMat,"D"=t(Covar),"Q"="zero"))
+diag(Covar)="Spawn"
+models[[2]] = MARSS(Yall, model = list("d"=cMat,"D"=t(Covar),"Q"="zero"))
+m = matrix(NA,2,2)
+colnames(m) = c("Model","AICc")
+m[1,1]="Unequal density dependence (Ricker b)"
+m[2,1]="Equal density dependence (Ricker b)"
+m[1,2]=round(models[[1]]$AICc,3)
+m[2,2]=round(models[[2]]$AICc,3)
+```
+
+```{r,echo=FALSE}
+kable(m)
+```
+
+```{r,warning=FALSE, cache=TRUE}
+library(MARSS)
+covar.names = c("SST.sock.lag2","Upwelling.winter.lag1",
+"Upwelling.winter.lag2")
+# fit in initial Ricker S-R state space model 
+
+cMat = matrix(NA, nrow=4, ncol = nT)
+cMat[1,] = X
+cMat[2,] = X2
+cMat[3,] = X3
+Yall = rbind(Y,Y2,Y3)
+
+# Coefficients matrix. cMat Matrix is dimensioned
+# cmat.row x cmat.col, and Covar needs to be dimensioned
+# cmat.row x n.responses
+Covar = matrix(list(0),3,3)
+Covar[1,1] = "Spawn.Cog"
+Covar[2,2] = "Spawn.Esh"
+Covar[3,3] = "Spawn.Cop"
+Covar = rbind(Covar,c("Enviro","Enviro","Enviro"))
+
+enviro.models = list()
+
+```
+
+```{r,echo=FALSE,warning=FALSE,silent=TRUE,cache=TRUE,results="hide"}
+m = matrix(NA,length(covar.names),3)
+colnames(m) = c("Model","AICc","Coef")
+m[,1] = covar.names
+
+for(i in 1:length(covar.names)) {
+# include this covariate as predictor
+cMat[4,] = coghill[subset,covar.names[i]]
+# set Q = 0, observation error only
+enviro.models[[i]] = MARSS(Yall, model = list("d"=cMat,"D"=t(Covar),"Q"="zero"))
+m[i,2] = round(enviro.models[[i]]$AICc,3)
+m[i,3] = round(enviro.models[[i]]$par$A[4],8)
+}
+
+```
+
+```{r,echo=FALSE}
+kable(m)
+```
+
+
+As an update, we can also explore whether these same correlations hold for the longer time series, going back to 1968.
+```{r,warning=FALSE,silent=TRUE}
+subset = which(coghill$BroodYear%in%seq(1968,2008))
+
+Y = log(as.numeric(coghill$RecPerSpawn[subset])) # log(R/S)
+X = as.numeric(coghill$Escapement[subset]) # number of spawners
+nT = length(Y)
+
+Y2 = log(as.numeric(eshamy$RecPerSpawn[subset])) # log(R/S)
+X2 = as.numeric(eshamy$Escapement[subset]) # number of spawners
+```
+
+```{r,warning=FALSE,silent=TRUE,echo=FALSE,cache=TRUE,results="hide"}
+# interpolate eshamy spawners
+fit = c(MARSS(log(X2))$states)
+```
+
+```{r,warning=FALSE,silent=TRUE}
+X2[which(is.na(X2))]= exp(fit[which(is.na(X2))])
+
+Y3 = log(as.numeric(copper$RecPerSpawn[subset])) # log(R/S)
+X3 = as.numeric(copper$Escapement[subset]) # number of spawners
+
+# fit in initial Ricker S-R state space model 
+cMat = matrix(NA, nrow=3, ncol = nT)
+cMat[1,] = X
+cMat[2,] = X2
+cMat[3,] = X3
+
+Yall = rbind(Y,Y2,Y3)  # log(R/S)
+
+Covar = matrix(list(0),3,3)
+Covar[1,1] = "Spawn.Cog"
+Covar[2,2] = "Spawn.Esh"
+Covar[3,3] = "Spawn.Cop"
+
+models = list()
+
+```
+
+```{r,warning=FALSE,silent=TRUE,echo=FALSE,cache=TRUE,results="hide"}
+# set Q = 0, observation error only
+models[[1]] = MARSS(Yall, model = list("d"=cMat,"D"=t(Covar),"Q"="zero"))
+diag(Covar)="Spawn"
+models[[2]] = MARSS(Yall, model = list("d"=cMat,"D"=t(Covar),"Q"="zero"))
+m = matrix(NA,2,2)
+colnames(m) = c("Model","AICc")
+m[1,1]="Unequal density dependence (Ricker b)"
+m[2,1]="Equal density dependence (Ricker b)"
+m[1,2]=round(models[[1]]$AICc,3)
+m[2,2]=round(models[[2]]$AICc,3)
+```
+
+```{r,echo=FALSE}
+kable(m)
+```
+
+```{r,warning=FALSE, cache=TRUE}
+library(MARSS)
+covar.names = c("SST.sock.lag2","Upwelling.winter.lag1",
+"Upwelling.winter.lag2")
+# fit in initial Ricker S-R state space model 
+
+cMat = matrix(NA, nrow=4, ncol = nT)
+cMat[1,] = X
+cMat[2,] = X2
+cMat[3,] = X3
+Yall = rbind(Y,Y2,Y3)
+
+# Coefficients matrix. cMat Matrix is dimensioned
+# cmat.row x cmat.col, and Covar needs to be dimensioned
+# cmat.row x n.responses
+Covar = matrix(list(0),3,3)
+Covar[1,1] = "Spawn.Cog"
+Covar[2,2] = "Spawn.Esh"
+Covar[3,3] = "Spawn.Cop"
+Covar = rbind(Covar,c("Enviro","Enviro","Enviro"))
+
+enviro.models = list()
+
+```
+
+```{r,echo=FALSE,warning=FALSE,silent=TRUE,cache=TRUE,results="hide"}
+m = matrix(NA,length(covar.names),3)
+colnames(m) = c("Model","AICc","Coef")
+m[,1] = covar.names
+
+for(i in 1:length(covar.names)) {
+# include this covariate as predictor
+cMat[4,] = coghill[subset,covar.names[i]]
+# set Q = 0, observation error only
+enviro.models[[i]] = MARSS(Yall, model = list("d"=cMat,"D"=t(Covar),"Q"="zero"))
+m[i,2] = round(enviro.models[[i]]$AICc,3)
+m[i,3] = round(enviro.models[[i]]$par$A[4],8)
+}
+
+```
+```{r}
+kable(m)
+```
+
