@@ -1,0 +1,288 @@
+---
+title: "Chinook salmon analyses for paper"
+date: "03-28-2016"
+output:
+  pdf_document:
+  fig_caption: yes
+  html_document: default
+  word_document: default
+---
+
+This represents an outline / summary of the Chinook salmon analyses for the Ward et al. paper. 
+
+# Data Processing  
+```{r,echo=FALSE,message=FALSE}
+# Try readxl package
+if("readxl" %in% rownames(installed.packages()) == FALSE) {
+  devtools::install_github("hadley/readxl")}
+require(readxl)
+library(MARSS)
+library(knitr)
+```
+
+##Brief descriptions of Copper River Chinook salmon dataset are as follows:
+
+### Copper River Chinook
+R/S is calculated as brood year returns / escapement. These are columns 'C' and 'E' from the 'Total_Run_Size' sheet of '2015 Copper River Chinook forecast-FINAL.xlsm'.   
+
+### Read in the data. All datasets have been trimmed to start at Brood Year 1968. We'll primarily use data 1980 or 1981 - 2008, because those are the span of years with R/S and covariates known (hatchery releases before 1980 incomplete).
+```{r}
+chnk = read_excel("../../data/salmon data/data for analysis/Copper_Chinook_final.xlsx")
+```
+
+Plot the response, log(Recruits/Spawners).
+```{r, fig.cap='log(Recruits / Spawner) , Spawners, and residuals of R/S relationship over time, 1981-2008',fig.pos="placeHere"}
+subset = which(chnk$BroodYear%in%seq(1981,2005))
+Y = log(as.numeric(chnk$RecPerSpawn[subset])) # log(R/S)
+
+par(mfrow = c(2,2),mgp=c(2,1,0),mai=c(0.8,0.6,0.2,0.05))
+plot(1981:2005,Y, xlab="Brood year",ylab="Recruits/Spawner",main="Copper Chinook", 
+     type="b")
+
+# Plot the predictor, number of spawners.
+X = as.numeric(chnk$Escapement[subset]) # number of spawners
+plot(1981:2005,X, xlab="Calendar year",ylab="Spawners",main="Copper Chinook", 
+     type="b")
+
+# Plot the data, as log(Recruits/Spawners) versus Spawners over the period we're using, 
+# 1981-2008. This is the same formulation as the Ricker model assumes (below).
+plot(X,Y, xlab="Spawners",ylab="Recruits/Spawner",main="Copper Chinook")
+# fit linear model
+lines(X, predict.lm(lm(Y~X),newdata=data.frame(X)), col="blue",lwd=3)
+
+# Plot the residuals from the regression of log(Recruits/Spawners) versus Spawners over 
+# the period we're using, 1981-2008. This is the same formulation as the Ricker 
+# model assumes (below).
+
+Y = log(as.numeric(chnk$RecPerSpawn[subset])) # log(R/S)
+X = as.numeric(chnk$Escapement[subset]) # number of spawners
+mod = lm(Y~X)
+plot(1981:2005,mod$residuals, xlab="Brood year",ylab="Residuals",main="Copper Chinook", 
+     type="b")
+```
+
+# Modeling recruiutment  
+
+We'll conduct this analysis using the Ricker stock-recruit model, which is equivalent to a linear regression model,  
+$log(R/S)_{t} = {a}_{i} + {b}_{i}*{S}_{t} + {c}_{i}*{X}_{t}  + {e}_{i}$  
+  
+where ${a}_{i}$ represents the population-specific intercept, ${b}_{i}$ is a density-dependent parameter (generally negative), ${c}_{i}$ is an optional coefficient(s) incorporating a time-varying covariate ${X}_{t}$, and ${e}_{i}$ is an error term. Simple models for the error are IID white noise, which we'll adopt here.
+
+## Constructing the basic (null) model with no covariates. 
+We'll start with just using data 1981-2008, and spawners as a predictor of recruitment. Recruits / spawner is not modeled as an autoregressive state-space process, but all uncertainty is assumed to have arisen from measurement and observation error. Hypotheses for mechanistic relationships are discussed and evaluated below. 
+
+```{r,warning=FALSE,silent=TRUE}
+subset = which(chnk$BroodYear%in%seq(1981,2005))
+
+Y = log(as.numeric(chnk$RecPerSpawn[subset])) # log(R/S)
+X = as.numeric(chnk$Escapement[subset]) # number of spawners
+nT = length(Y)
+```
+
+
+```{r,warning=FALSE,silent=TRUE}
+# fit in initial Ricker S-R state space model 
+cMat = matrix(NA, nrow=1, ncol = nT)
+cMat[1,] = X
+Covar = matrix(list(0),1,1)
+Covar[1,1] = "Spawners"
+models = list()
+```
+
+```{r,warning=FALSE,silent=TRUE,echo=FALSE,results="hide"}
+models[[1]] = MARSS(Y, model = list("Q"="zero"))
+models[[2]] = MARSS(Y, model = list("d"=cMat,"D"=t(Covar),"Q"="zero"))
+
+m = matrix(NA,2,3)
+colnames(m) = c("Model","AICc","Coef")
+m[1,1]="Null model"
+m[1,2]=round(models[[1]]$AICc,3)
+m[2,1]="Density dependence only (Ricker b)"
+m[2,2]=round(models[[2]]$AICc,3)
+m[2,3]=round(models[[2]]$par$A[1,1],8)
+
+```
+
+```{r,echo=FALSE}
+kable(m)
+```
+
+# Hypothesis 2: Potential impacts of EVOS
+
+The EVOS spill occurred in 1989. Chinook typically migrate to the ocean the year after spawning occurs (spring type in AK, overwinter for ~ 1 year), and return to spawn in spring.
+
+We'll include the impacts of the EVOS spill. We'll do this 3 ways: creating a pulse impact, a press impact, and a press impact followed by a recovery back to the original state. The form of the recovery was assumed to be linear over a 20 - year period.  
+
+[Note: a negative coefficient on the press or pulse corresponds to a negative impact; because of how we coded the dummy covariate, a negative coefficient on the pulse-recovery change translates into a positive perturbation]  
+```{r,fig.cap="Illustration of covariates representing EVOS impacts",fig.pos="placeHere"}
+par(mfrow = c(2,2),mgp=c(2,1,0))
+plot(chnk$BroodYear, 1-chnk$EVOS.pulse.lag0, xlab = "", ylab = "Impact",
+     main = "Pulse",col="blue",lwd=3,type="l")
+plot(chnk$BroodYear, 1-chnk$EVOS.press.lag0, xlab = "", ylab = "Impact",
+     main = "Press",col="blue",lwd=3,type="l")
+plot(chnk$BroodYear, chnk$EVOS.pulseRecovery.lag0, xlab = "", ylab = "Impact",
+     main = "Pulse/Recovery",col="blue",lwd=3,type="l")
+```
+
+```{r,warning=FALSE}
+library(MARSS)
+covar.names = c("EVOS.pulse.lag0", "EVOS.press.lag0", "EVOS.pulseRecovery.lag0", 
+"EVOS.pulse.lag2", "EVOS.press.lag2", "EVOS.pulseRecovery.lag2")
+# fit in initial Ricker S-R state space model 
+
+cMat = matrix(NA, nrow=2, ncol = nT)
+cMat[1,] = X
+Yall = rbind(Y)
+
+# Coefficients matrix. cMat Matrix is dimensioned
+# cmat.row x cmat.col, and Covar needs to be dimensioned
+# cmat.row x n.responses
+evos.models = list()
+```
+
+```{r,echo=FALSE,warning=FALSE,silent=TRUE,results="hide"}
+m = matrix(NA,length(covar.names),3)
+colnames(m) = c("Model","AICc","Coef")
+m[,1] = covar.names
+
+for(i in 1:length(covar.names)) {
+# include this covariate as predictor
+cMat[2,] = chnk[subset,covar.names[i]]
+# set Q = 0, observation error only
+evos.models[[i]] = MARSS(Yall, model = list("d"=cMat,"D"="unconstrained","Q"="zero"))
+m[i,2] = round(evos.models[[i]]$AICc,3)
+m[i,3] = round(evos.models[[i]]$par$A[2],8)
+}
+
+```
+
+```{r,echo=FALSE}
+kable(m)
+```
+
+These results show that in general, adding EVOS as a pulse impact (lag.0, in 1989) with either a recovery or not improves the fit of the model and lowers AIC. But the effects for all these models are slightly positive (positive coefficients for pulse/press and negative for pulse/recovery translate to positive effects). 
+
+# Hypothesis 3: Wild Chinook salmon productivity in PWS has been largely shaped by changing ocean conditions
+
+```{r,warning=FALSE}
+library(MARSS)
+covar.names = c("SST.chnk.lag0", "SST.chnk.lag1", "Upwelling.winter.lag1", 
+"Upwelling.winter.lag2", "Upwelling.summer.lag1", "Upwelling.summer.lag2")
+# fit in initial Ricker S-R state space model 
+
+cMat = matrix(NA, nrow=2, ncol = nT)
+cMat[1,] = X
+Yall = rbind(Y)
+
+# Coefficients matrix. cMat Matrix is dimensioned
+# cmat.row x cmat.col, and Covar needs to be dimensioned
+# cmat.row x n.responses
+enviro.models = list()
+
+```
+
+```{r,echo=FALSE,warning=FALSE,silent=TRUE,results="hide"}
+m = matrix(NA,length(covar.names),3)
+colnames(m) = c("Model","AICc","Coef")
+m[,1] = covar.names
+
+for(i in 1:length(covar.names)) {
+# include this covariate as predictor
+cMat[2,] = as.numeric(chnk[subset,covar.names[i]])
+# set Q = 0, observation error only
+enviro.models[[i]] = MARSS(Yall, model = list("d"=cMat,"D"="unconstrained","Q"="zero"))
+m[i,2] = round(enviro.models[[i]]$AICc,3)
+m[i,3] = round(enviro.models[[i]]$par$A[2],8)
+}
+
+```
+
+```{r}
+kable(m)
+```
+
+These results show that in these indices of SST and Upwelling on pink salmon increases AICc, worsening the fit of the model.
+
+
+# Hypothesis 4: Wild Chinook salmon productivity in PWS has been impacted by predation and competition from juvenile pink (hatchery) or chum salmon
+
+```{r,warning=FALSE}
+library(MARSS)
+covar.names = c("juv.hatchRelPink.lag1", "juv.hatchRelChum.lag1", "juv.wildChumRun.lag1", "juv.wildPinkRun.lag1")#,"juv.wildCohoRun.lag1","juv.wildSock.lag1")
+# fit in initial Ricker S-R state space model 
+
+cMat = matrix(NA, nrow=2, ncol = nT)
+cMat[1,] = X
+Yall = rbind(Y)
+# Coefficients matrix. cMat Matrix is dimensioned
+# cmat.row x cmat.col, and Covar needs to be dimensioned
+# cmat.row x n.responses
+juvComp.models = list()
+
+```
+
+```{r,echo=FALSE,warning=FALSE,silent=TRUE,results="hide"}
+m = matrix(NA,length(covar.names),3)
+colnames(m) = c("Model","AICc","Coef")
+m[,1] = covar.names
+
+for(i in 1:length(covar.names)) {
+# include this covariate as predictor
+cMat[2,] = chnk[subset,covar.names[i]]
+# set Q = 0, observation error only
+juvComp.models[[i]] = MARSS(Yall, model = list("d"=cMat,"D"="unconstrained","Q"="zero"))
+m[i,2] = round(juvComp.models[[i]]$AICc,3)
+m[i,3] = round(juvComp.models[[i]]$par$A[2],8)
+}
+
+```
+
+```{r}
+kable(m)
+```
+
+These results show that in these indices of pink and chum salmon juvenile competion with juvenile wild Chinook salmon lowers AICc. These results don't make a lot of sense though, because the estimated effect of these species on juvenile Chinook is slightly positive. 
+
+# Hypothesis 5: Wild Chinook salmon productivity in PWS has been impacted by predation and competition from adult pink salmon (and other adult salmon)
+
+```{r,warning=FALSE}
+library(MARSS)
+chnk$ad.totalPinkRun.lag1 = chnk$ad.wildPinkRun.lag1 + chnk$ad.hatchPinkRun.lag1
+covar.names = c("ad.hatchRelPink.lag1", 
+"ad.hatchRelChum.lag1", 
+"ad.wildChumRun.lag2", "ad.wildPinkRun.lag1", "ad.hatchPinkRun.lag1", "ad.totalPinkRun.lag1")
+# fit in initial Ricker S-R state space model 
+
+cMat = matrix(NA, nrow=2, ncol = nT)
+cMat[1,] = X
+Yall = rbind(Y)
+
+# Coefficients matrix. cMat Matrix is dimensioned
+# cmat.row x cmat.col, and Covar needs to be dimensioned
+# cmat.row x n.responses
+adComp.models = list()
+
+```
+
+```{r,echo=FALSE,warning=FALSE,silent=TRUE,results="hide"}
+m = matrix(NA,length(covar.names),3)
+colnames(m) = c("Model","AICc","Coef")
+m[,1] = covar.names
+ 
+for(i in 1:length(covar.names)) {
+# include this covariate as predictor
+cMat[2,] = as.numeric(chnk[subset,covar.names[i]])
+
+# set Q = 0, observation error only
+adComp.models[[i]] = MARSS(Yall, model = list("d"=cMat,"D"="unconstrained","Q"="zero"))
+m[i,2] = round(adComp.models[[i]]$AICc,3)
+m[i,3] = round(adComp.models[[i]]$par$A[2],8)
+}
+```
+
+```{r,echo=FALSE}
+kable(m)
+```
+
+Again, these results show that in these indices of pink and chum salmon adult predation with juvenile Chinook salmon improves the fit of the model (lowering AICc) but these estimated effects of pink and chum are slightly positive.
+
