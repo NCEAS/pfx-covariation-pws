@@ -167,7 +167,8 @@ These results show that in general, adding EVOS as a pulse impact (lag.0, in 198
 ```{r,warning=FALSE}
 library(MARSS)
 covar.names = c("SST.chnk.lag0", "SST.chnk.lag1", "Upwelling.winter.lag1", 
-"Upwelling.winter.lag2", "Upwelling.summer.lag1", "Upwelling.summer.lag2")
+"Upwelling.winter.lag2", "Upwelling.summer.lag1", "Upwelling.summer.lag2",
+  "discharge.lag0", "discharge.lag1")
 # fit in initial Ricker S-R state space model 
 
 cMat = matrix(NA, nrow=2, ncol = nT)

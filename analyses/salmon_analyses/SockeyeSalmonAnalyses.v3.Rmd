@@ -256,7 +256,7 @@ These results show that in general, adding EVOS as an impact increases AICc.
 ```{r,warning=FALSE}
 library(MARSS)
 covar.names = c("SST.sock.lag2","Upwelling.winter.lag1",
-"Upwelling.winter.lag2")
+"Upwelling.winter.lag2", "discharge.lag0", "discharge.lag1")
 # fit in initial Ricker S-R state space model 
 
 cMat = matrix(NA, nrow=4, ncol = nT)

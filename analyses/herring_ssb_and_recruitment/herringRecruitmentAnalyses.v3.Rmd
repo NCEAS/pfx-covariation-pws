@@ -306,8 +306,9 @@ mod = lm(Y~cMat[1,]+cMat[2,])
 ```{r,fig.cap="Observed (red points) and predicted (black line) recruits per spawner, 1981-2011",fig.pos="placeHere"}
 
 pdf("Figure 3 herring.pdf")
+expr = expression(paste("Total discharge ", m^3, " ", s^-1, sep=""))
 par(mfrow=c(2,1),mgp=c(2,1,0),mai=c(0.7,0.7,0.3,0.1))
-plot(pwsher$BroodYear,pwsher$CatchMillionsFish, xlab="", ylab="Catch (millions of herring)",
+plot(pwsher$BroodYear[which(pwsher$BroodYear%in%seq(1981,2011))],pwsher$discharge.lag0[which(pwsher$BroodYear%in%seq(1981,2011))], xlab="", ylab=expr,
      type="b", lwd=3, xlim=c(1981,2011))
 legend('topleft',"(a)", bty='n')
 plot(1981:2011, lm(Y~cMat[1,]+cMat[2,])$fitted.values, xlab="", ylim=c(-16,1),type="l",lwd=3,ylab="log(R/S)")
