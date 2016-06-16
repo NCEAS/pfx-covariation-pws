@@ -8,7 +8,7 @@ output:
   word_document: default
 ---
 
-This represents an outline / summary of the pink salmon analyses for the Ward et al. paper. 
+This represents an outline / summary of the sockeye salmon analyses for the Ward et al. paper. 
 
 # Data Processing  
 ```{r,echo=FALSE,message=FALSE}
