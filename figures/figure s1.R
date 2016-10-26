@@ -1,6 +1,10 @@
 
+rm(list=ls())
+library(fields)
+library(reshape2)
+library(ggplot2)
 
-releases = read.csv("data/salmon data/raw_data/PWS hatchery releases all species.csv")
+releases = read.csv("/Users/eric.ward/Documents/pfx-covariation-pws/data/salmon data/raw_data/PWS hatchery releases all species.csv")
 
 # only show 1987 - 2014, since that's the complete data
 # don't show chinook - incomplete
@@ -10,21 +14,40 @@ for(i in 1:dim(releases)[2]) {
 	releases[is.na(releases[,i])==TRUE,i] =0
 }
 
-library(fields)
+releases = releases[,c(4,3,1,2)]
+releases$year = seq(1979,2014)
+names(releases)[names(releases)%in%c("COHO")]="Coho"
+names(releases)[names(releases)%in%c("CHUM")]="Chum"
+names(releases)[names(releases)%in%c("PINK")]="Pink"
+names(releases)[names(releases)%in%c("SOCKEYE")]="Sockeye"
+
+# convert df to long
+releases <- melt(releases, id.vars = c("year"))
+names(releases)[names(releases)%in%c("variable")]="Species"
+
+names(releases)[names(releases)%in%c("value")]="count"
+
+# chinook chum coho pink sock
+#cbPalette <- c("#009E73", "#4B2E83", "#999999", "#CC79A7", "#D55E00")
+# coho sockeye pink chum
+cbPalette <- c("#4B2E83", "#D55E00", "#999999", "#CC79A7")
+
+releases$col = as.numeric(as.factor(releases$Species))
+
+ggplot(releases, aes(year, count)) + 
+geom_area(aes(fill = cbPalette[col]), position = "stack") + 
+scale_fill_manual(values = cbPalette) + xlab("Year") + ylab("Releases")
+
+
+
+
+geom_area(aes(fill = cbPalette[col]), position = "stack") +
+  xlab("Year") + ylab("Harvest of hatchery produced salmon (millions)") +
+  scale_fill_manual(values = cbPalette) + theme(legend.position="none")
+
+g = ggplot(releases, aes(year, count)) + geom_area(aes(fill = cbPalette[col]), position = "stack") + xlab("Year") + ylab("Releases") + scale_fill_manual(values = cbPalette)
+g + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"))
 
 pdf("Figure S1 Hatchery Release trends since 1979.pdf")
 
-Yrs = seq(1979,2014)
-N = length(Yrs)
-# Plot polygon of coho 
-plot(0,0,col="white",xlab="Year", ylab = "Hatchery releases (numbers of fish)", xlim= range(Yrs), ylim=c(0, max(apply(releases,1,sum))))
-polygon(c(Yrs,rev(Yrs)), c(rep(0, N), rev(releases$COHO)), border=NA, col = "black")
-# plot sockeye
-polygon(c(Yrs,rev(Yrs)), c(releases$COHO, rev(releases$COHO+releases$SOCKEYE)), border=NA, col = "grey80")
-# plot chum
-polygon(c(Yrs,rev(Yrs)), c(releases$COHO+releases$SOCKEYE, rev(releases$COHO+releases$SOCKEYE+releases$CHUM)), border=NA, col = "grey50")
-# plot pink
-polygon(c(Yrs,rev(Yrs)), c(releases$COHO+releases$SOCKEYE+releases$CHUM, rev(releases$COHO+releases$SOCKEYE+releases$PINK+releases$CHUM)), border=NA, col = "grey30")
-
-legend('topleft', bty="n", fill = c("black","grey80","grey50","grey30"), c("Coho","Sockeye","Chum","Pink"))
 dev.off()
