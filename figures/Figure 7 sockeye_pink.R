@@ -19,15 +19,15 @@ coghill.mod = lm(logRS ~ ad.hatchPinkRun.lag2, data = coghill[which(!is.na(coghi
 
 pdf("Figure 07.pdf")
 par(mfrow = c(2,2), mai = c(0.6,0.6,0.2,0.03), mgp=c(2,1,0))
-plot(coghill$ad.hatchPinkRun.lag2[which(!is.na(coghill$logRS))], coghill$logRS[which(!is.na(coghill$logRS))], main="Coghill Lake sockeye", lwd=2, xlab="Pink salmon hatchery returns",ylab="ln (R/S)",type="p")
+plot(coghill$ad.hatchPinkRun.lag2[which(!is.na(coghill$logRS))], coghill$logRS[which(!is.na(coghill$logRS))], main="Coghill Lake sockeye", lwd=2, xlab="Pink salmon hatchery returns",ylab="ln (R/S)",type="p", col="dark blue")
 sorted = sort(coghill$ad.hatchPinkRun.lag2[which(!is.na(coghill$logRS))], index.return=T)
 lines(sorted$x, coghill.mod$fitted.values[sorted$ix], lwd=2,col="grey30")
 
-plot(eshamy$ad.hatchPinkRun.lag2[which(!is.na(eshamy$logRS))], eshamy$logRS[which(!is.na(eshamy$logRS))], main="Eshamy Lake sockeye", lwd=2, xlab="Pink salmon hatchery returns",ylab="ln (R/S)",type="p")
+plot(eshamy$ad.hatchPinkRun.lag2[which(!is.na(eshamy$logRS))], eshamy$logRS[which(!is.na(eshamy$logRS))], main="Eshamy Lake sockeye", lwd=2, xlab="Pink salmon hatchery returns",ylab="ln (R/S)",type="p", col = "dark blue")
 sorted = sort(eshamy$ad.hatchPinkRun.lag2[which(!is.na(eshamy$logRS))], index.return=T)
 lines(sorted$x, eshamy.mod$fitted.values[sorted$ix], lwd=2,col="grey30")
 
-plot(copper$ad.hatchPinkRun.lag2[which(!is.na(copper$logRS))], copper$logRS[which(!is.na(copper$logRS))], main="Copper River sockeye", lwd=2, xlab="Pink salmon hatchery returns",ylab="ln (R/S)",type="p")
+plot(copper$ad.hatchPinkRun.lag2[which(!is.na(copper$logRS))], copper$logRS[which(!is.na(copper$logRS))], main="Copper River sockeye", lwd=2, xlab="Pink salmon hatchery returns",ylab="ln (R/S)",type="p", col = "dark blue")
 sorted = sort(copper$ad.hatchPinkRun.lag2[which(!is.na(copper$logRS))], index.return=T)
 lines(sorted$x, copper.mod$fitted.values[sorted$ix], lwd=2,col="grey30")
 dev.off()
