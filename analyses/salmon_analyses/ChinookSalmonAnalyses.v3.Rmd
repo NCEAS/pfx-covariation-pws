@@ -79,6 +79,24 @@ X = as.numeric(chnk$Escapement[subset]) # number of spawners
 nT = length(Y)
 ```
 
+```{r}
+# Fit initial DLM with time-varying DD effects
+# Example from MARSS manual
+dat_mat = matrix(Y, nrow=1)
+m = 2
+
+# for observation eqn
+Z = array(NA, c(1,m,length(Y))) 
+Z[1,1,] = rep(1,length(Y)) # intercept
+Z[1,2,] = X # covariate
+
+inits.list = list(x0=matrix(c(0, 0), nrow=m))
+mod.list = list(B="identity", U="zero", Q="diagonal and unequal", Z=Z, A="zero")
+dlm1 = MARSS(dat_mat, inits = inits.list, model=mod.list)
+
+plot(dlm1$states[1,], xlab="", ylab="Intercept estimated from DLM")
+```
+
 
 ```{r,warning=FALSE,silent=TRUE}
 # fit in initial Ricker S-R state space model 
