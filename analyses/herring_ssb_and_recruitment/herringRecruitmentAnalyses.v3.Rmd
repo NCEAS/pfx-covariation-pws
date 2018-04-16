@@ -82,7 +82,10 @@ We'll start with just using data 1981-2011, and spawners as a predictor of recru
 subset = which(pwsher$BroodYear%in%seq(1981,2011))
 
 Y = log(as.numeric(pwsher$RecPerSpawn[subset])) # log(R/S)
-X = as.numeric(pwsher$RecPerSpawn[subset]) # number of spawners
+# This line was the source of the error / correction - it was:
+# X = as.numeric(pwsher$RecPerSpawn[subset]) # number of spawners
+# but should be:
+X = as.numeric(pwsher$BroodYearSB[subset])
 nT = length(Y)
 
 # fit in initial Ricker S-R state space model 
@@ -146,7 +149,7 @@ m[,1] = covar.names
 
 for(i in 1:length(covar.names)) {
 # include this covariate as predictor
-cMat[2,] = pwsher[subset,covar.names[i]]
+cMat[2,] = as.numeric(unlist(pwsher[subset,covar.names[i]]))
 # set Q = 0, observation error only
 evos.models[[i]] = MARSS(Y, model = list("d"=cMat,"Q"="zero"))
 m[i,2] = round(evos.models[[i]]$AICc,3)
@@ -187,7 +190,7 @@ m[,1] = covar.names
 
 for(i in 1:length(covar.names)) {
 # include this covariate as predictor
-cMat[2,] = pwsher[subset,covar.names[i]]
+cMat[2,] = as.numeric(unlist(pwsher[subset,covar.names[i]]))
 # set Q = 0, observation error only
 juvComp.models[[i]] = MARSS(Y, model = list("d"=cMat,"Q"="zero"))
 m[i,2] = round(juvComp.models[[i]]$AICc,3)
@@ -207,9 +210,9 @@ These results show that there isn't much support for including pink or chum comp
 ```{r,warning=FALSE}
 library(MARSS)
 pwsher$ad.totalPinkRun.lag1 = pwsher$ad.wildPinkRun.lag1 + pwsher$ad.hatchPinkRun.lag1
-covar.names = c("ad.hatchPinkRun.lag1","ad.hatchRelChum.lag2",
+covar.names = c("ad.hatchPinkRun.lag1",
 "ad.wildPinkRun.lag1","ad.wildChumRun.lag1",
-"ad.totalPinkRun.lag1")
+"ad.totalPinkRun.lag1","ad.hatchRelChum.lag1")
 # fit in initial Ricker S-R state space model 
 
 cMat = matrix(NA, nrow=2, ncol = nT)
@@ -225,7 +228,7 @@ m[,1] = covar.names
  
 for(i in 1:length(covar.names)) {
 # include this covariate as predictor
-cMat[2,] = pwsher[subset,covar.names[i]]
+cMat[2,] = as.numeric(unlist(pwsher[subset,covar.names[i]]))
 # set Q = 0, observation error only
 adComp.models[[i]] = MARSS(Y, model = list("d"=cMat,"Q"="zero"))
 m[i,2] = round(adComp.models[[i]]$AICc,3)
@@ -261,7 +264,7 @@ m[,1] = covar.names
 
 for(i in 1:length(covar.names)) {
 # include this covariate as predictor
-cMat[2,] = pwsher[subset,covar.names[i]]
+cMat[2,] = as.numeric(unlist(pwsher[subset,covar.names[i]]))
 # set Q = 0, observation error only
 enviro.models[[i]] = MARSS(Y, model = list("d"=cMat,"Q"="zero"),control=list("maxit"=1000))
 m[i,2] = round(enviro.models[[i]]$AICc,3)
@@ -274,50 +277,11 @@ m[i,3] = round(enviro.models[[i]]$par$A[2],8)
 kable(m)
 ```
 
-These results show that most of the environmental indices (or humpbacks) doesn't appear to have a strong impact on PWS herring recruitment. The exception is discharge, which has a huge improvement as a predictor (- 8 log likelihood units)
-
-Using this best model, let's look at including some of the EVOS or pink/chum covariates with discharge.
-
-```{r,warning=FALSE}
-library(MARSS)
-covar.names = c("EVOS.press.lag2","EVOS.pulseRecovery.lag2",
-"ad.hatchRelPink.lag2","ad.hatchRelChum.lag2")
-
-cMat = matrix(NA, nrow=3, ncol = nT)
-cMat[1,] = X
-cMat[2,] = pwsher[subset,"discharge.lag0"]
-
-combo.models = list()
-```
-
-```{r,echo=FALSE,warning=FALSE,silent=TRUE,results="hide"}
-m = matrix(NA,length(covar.names),3)
-colnames(m) = c("Model","AICc","Coef")
-m[,1] = paste("Discharge+",covar.names)
-
-for(i in 1:length(covar.names)) {
-# include this covariate as predictor
-cMat[3,] = pwsher[subset,covar.names[i]]
-# set Q = 0, observation error only
-combo.models[[i]] = MARSS(Y, model = list("d"=cMat,"Q"="zero"),control=list("maxit"=1000))
-m[i,2] = round(combo.models[[i]]$AICc,3)
-m[i,3] = round(combo.models[[i]]$par$A[2],3)
-}
-```
-
-```{r,echo=FALSE}
-kable(m)
-```
-
-What this shows is that once all of these predictors to the model with discharge, they do roughly equally well, so the model with discharge alone is still best. 
-
-The R^2 from this model is about ~ 0.55, and we can look at the plot of observed and predicted values.
-
 ```{r,warning=FALSE}
 
 cMat = matrix(NA, nrow=2, ncol = nT)
 cMat[1,] = X
-cMat[2,] = pwsher[subset,"discharge.lag0"]
+cMat[2,] = as.numeric(unlist(pwsher[subset,"discharge.lag0"]))
 mod = lm(Y~cMat[1,]+cMat[2,])
 ```
 
